@@ -1,6 +1,7 @@
 import os
 
 
+
 class Config:
     @staticmethod
     def gitlab_private_token():

@@ -1,6 +1,8 @@
+import hashlib
 from enum import Enum
 
 from app.clients.gitlab_client import GitlabClient
+from app.clients.test_stand_client import TestStandClient
 from app.core.logger import CustomLogger
 from app.models.create_stand_request import CreateStandRequest
 import threading
@@ -51,6 +53,7 @@ class StandCreator(metaclass=SingletonMetaStandCreator):
 
     def create_stand_handler(self, request: CreateStandRequest):
         self.__logger.message(f"Начинаем обработку запроса {request}")
+
         if request in self.__pipelines.getkeys():
             self.__logger.message(f"Запрос {request} был ранее получен")
             pipeline_id = self.__pipelines.getitem(request)
@@ -58,16 +61,19 @@ class StandCreator(metaclass=SingletonMetaStandCreator):
             self.__logger.message(f"Статус пайплайна по запросу {request} {status}")
             if status == PipelineAction.WAIT:
                 self.__logger.message(f"Пайплайн {pipeline_id} ожидает завершения выполнения")
-                return
+                return "Стенд в процессе создания. Повторите запрос позже, чтобы получить данные стенда."
             elif status == PipelineAction.READY:
                 domain = self.generate_domain(request)
                 self.__logger.message(
                     f"Пайплайн {pipeline_id} по запросу {request} завершен. Сгенерирован стенд {domain}")
+                if not TestStandClient.is_stand_healthy(domain):
+                    self.__logger.error(Exception(f"На созданном стенде {domain} не прошел хелсчек"))
                 return domain
+
         pipeline_id = self.__gitlab_client.run_create_stand_pipeline(request)
         self.__logger.message(f"Пайплайн {pipeline_id} на {request} запущен")
         self.__pipelines.setitem(request, pipeline_id)
-        return
+        return "Начато создание стенда. Повторите запрос позже, чтобы получить данные стенда."
 
     def is_pipeline_finished(self, pipeline_id) -> PipelineAction:
         status = self.__gitlab_client.check_pipeline_status(pipeline_id)
@@ -79,15 +85,23 @@ class StandCreator(metaclass=SingletonMetaStandCreator):
 
     def generate_domain(self, request: CreateStandRequest):
 
-        if request.task_number == 'task1':
-            return f"{request.task_number}-alert-{request.yuid}-{request.stand_number}.seccheck.ru".lower()
-        elif request.task_number == 'task2':
-            return f"{request.task_number}-blndsqli-{request.yuid}-{request.stand_number}.seccheck.ru".lower()
-        elif request.task_number == 'task3':
-            return f"{request.task_number}-rpass-{request.yuid}-{request.stand_number}.seccheck.ru".lower()
-        elif request.task_number == 'task4':
-            return f"{request.task_number}-xxe-{request.yuid}-{request.stand_number}.seccheck.ru".lower()
-        elif request.task_number == 'task5':
-            return f"{request.task_number}-images-{request.yuid}-{request.stand_number}.seccheck.ru".lower()
+        if request.stand_number == 'stand1':
+            return f"{request.task_number}-{self.generate_hash(request.yuid)}-{request.stand_number}.seccheck.ru".lower()
+        elif request.stand_number == 'stand2':
+            task_mapping = {
+                'task1': 'alert',
+                'task2': 'blndsqli',
+                'task3': 'rpass',
+                'task4': 'xxe',
+                'task5': 'images',
+            }
+            task_type = task_mapping.get(request.task_number, 'unknown')
+            return f"{request.task_number}-{task_type}-{self.generate_hash(request.yuid)}-{request.stand_number}.seccheck.ru".lower()
         else:
-            return ""
+            self.__logger.error(f"Неправильный номер стенда {request.stand_number}")
+
+    def generate_hash(self, yuid: str) -> str:
+        sha256_hash = hashlib.sha256(yuid.encode('UTF-8')).hexdigest()
+        md5_hash = hashlib.md5(sha256_hash.encode()).hexdigest()
+
+        return md5_hash[:5]

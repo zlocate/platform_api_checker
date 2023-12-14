@@ -8,6 +8,7 @@ import sentry_sdk
 app = FastAPI()
 
 sentry_sdk.init(
+    # TODO: Унести в ENV
     dsn="https://b0f3a40208402c81879a79fe8bab4992@o4506372955176960.ingest.sentry.io/4506372988272640",
     # Set traces_sample_rate to 1.0 to capture 100%
     # of transactions for performance monitoring.

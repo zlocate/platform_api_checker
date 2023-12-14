@@ -9,7 +9,6 @@ class Config:
 
     @staticmethod
     def gitlab_url():
-        a = os.getenv('GITLAB_URL')
         return os.getenv('GITLAB_URL')
 
     @staticmethod

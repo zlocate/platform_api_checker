@@ -1,0 +1,10 @@
+version: '3'
+services:
+  api-checker:
+    restart: unless-stopped
+    container_name: api-checker
+
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"

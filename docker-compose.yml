@@ -1,7 +1,7 @@
 version: '3'
 services:
   api-checker:
-    image: practicum.gitlab.yandexcloud.net:5050/pp-infosec/platform_api_checker/api-checker 
+    image: practicum.gitlab.yandexcloud.net:5050/pp-infosec/platform_api_checker/api-checker:main
     restart: unless-stopped
     container_name: api-checker
     # stdin_open: true # docker run -i

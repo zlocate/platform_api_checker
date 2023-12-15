@@ -1,0 +1,15 @@
+version: '3'
+services:
+  api-checker:
+    image: practicum.gitlab.yandexcloud.net:5050/pp-infosec/platform_api_checker/api-checker 
+    restart: unless-stopped
+    container_name: api-checker
+    # stdin_open: true # docker run -i
+    # tty: true        # docker run -t
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"

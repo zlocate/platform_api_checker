@@ -1,0 +1,62 @@
+stages:
+  - build
+
+variables:
+  CI_PROJECT_IMAGE_NAME: "api-image"
+  REGISTRY_IMAGE_PATH: "${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}/${CI_PROJECT_IMAGE_NAME}"
+  PUSH_IMAGE: "true"
+  GIT_DEPTH: 1
+  DOCKER_FILE_NAME: "Dockerfile"
+
+
+kaniko-build-docker-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  only:
+    variables:
+      - $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      - $CI_COMMIT_REF_NAME == "feature/dockerize-and-ci"
+  script:
+    - |
+      if [ -z "${REGISTRY_IMAGE_PATH}" ]; then
+        echo "ERROR: CI variable REGISTRY_IMAGE_PATH is mandatory."
+        exit 1
+      fi
+    - REGISTRY=$(echo ${REGISTRY_IMAGE_PATH} | cut -d / -f 1)
+    - >
+      if [ -z "${CONTEXT_DIR}" ]; then
+        KANIKO_CONTEXT_DIR=${CI_PROJECT_DIR}
+      else
+        KANIKO_CONTEXT_DIR=${CI_PROJECT_DIR}/${CONTEXT_DIR}
+      fi
+    - mkdir -p /kaniko/.docker
+    - |
+      if [ -z "$DOCKER_AUTH_CONFIG" ]; then
+        # build the DOCKER_AUTH_CONFIG from user parameters as per https://docs.gitlab.com/ee/ci/docker/using_kaniko.html and internal docs
+        echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+      else
+        echo "${DOCKER_AUTH_CONFIG}" > /kaniko/.docker/config.json
+      fi
+    # build and push the image to the path set in $REGISTRY_IMAGE_PATH variable.
+    - |
+      if [ "$(echo ${PUSH_IMAGE} | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+        PUSH_IMAGE=""
+      else
+        echo "Info: defer pushing image to remote as PUSH_IMAGE is false"
+        PUSH_IMAGE="--no-push"
+      fi
+    - |
+      if [ "$(echo ${ACCELERATED_IMAGE} | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+        export GGCR_EXPERIMENT_ESTARGZ=1
+      fi
+    - |
+      if [ -n "$BUILD_ARGS" ]; then
+        for arg in $BUILD_ARGS; do
+          KANIKO_BUILD_ARGS="${KANIKO_BUILD_ARGS} --build-arg ${arg}"
+        done
+      fi
+    - echo "KANIKO_CONTEXT_DIR - $KANIKO_CONTEXT_DIR \n DOCKER_FILE_NAME = $DOCKER_FILE_NAME \n KANIKO_BUILD_ARGS = $KANIKO_BUILD_ARGS"
+    - /kaniko/executor --context "${KANIKO_CONTEXT_DIR}" --dockerfile "${KANIKO_CONTEXT_DIR}/${DOCKER_FILE_NAME}" ${KANIKO_BUILD_ARGS} --destination "${REGISTRY_IMAGE_PATH}:${CI_COMMIT_SHORT_SHA}" --destination "${REGISTRY_IMAGE_PATH}:latest" "${PUSH_IMAGE}"
+

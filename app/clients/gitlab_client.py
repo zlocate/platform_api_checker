@@ -1,7 +1,7 @@
 from gitlab import Gitlab
 
 from app.models.create_stand_request import CreateStandRequest
-from config import Config
+from app.config import Config
 
 gitlab_url = Config.gitlab_url()
 private_token = Config.gitlab_private_token()
